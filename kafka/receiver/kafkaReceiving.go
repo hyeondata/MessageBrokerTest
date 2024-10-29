@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/signal"
 	"sync"
+	"sync/atomic"
 	"syscall"
 
 	"github.com/IBM/sarama"
@@ -15,13 +16,17 @@ func main() {
 	config := sarama.NewConfig()
 	config.Version = sarama.V3_5_0_0 // Kafka 3.5.x와 호환
 
+	// 가장 오래된 offset부터 소비 시작
+	config.Consumer.Offsets.Initial = sarama.OffsetOldest
+
 	// Kafka 설정 및 클라이언트 생성
 	group := "my-group"
 	brokers := []string{"localhost:9092"}
-	topics := []string{"hello"}
+	topics := []string{"test"}
 
 	consumer := Consumer{
-		ready: make(chan bool), // 채널을 초기화합니다.
+		ready:        make(chan bool),
+		messageCount: 0,
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	client, err := sarama.NewConsumerGroup(brokers, group, config)
@@ -66,15 +71,13 @@ func main() {
 
 // Consumer 구조체 정의
 type Consumer struct {
-	ready chan bool
+	ready        chan bool
+	messageCount uint64
 }
 
 // Setup은 컨슈머가 준비된 후 호출됩니다.
 func (consumer *Consumer) Setup(sarama.ConsumerGroupSession) error {
-	// `consumer.ready`가 nil인지 확인하지 않고 닫기 전에 생성되었는지 확인
-	if consumer.ready != nil {
-		close(consumer.ready)
-	}
+	close(consumer.ready)
 	return nil
 }
 
@@ -86,7 +89,11 @@ func (consumer *Consumer) Cleanup(sarama.ConsumerGroupSession) error {
 // ConsumeClaim은 실제 메시지를 소비합니다.
 func (consumer *Consumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim sarama.ConsumerGroupClaim) error {
 	for message := range claim.Messages() {
-		fmt.Printf("Received message: %s\n", string(message.Value))
+		count := atomic.AddUint64(&consumer.messageCount, 1)
+		if count%10000 == 0 {
+			fmt.Printf("Received message: topic=%s partition=%d offset=%d, messageCount=%d\n",
+				message.Topic, message.Partition, message.Offset, count)
+		}
 		session.MarkMessage(message, "")
 	}
 	return nil

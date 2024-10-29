@@ -51,6 +51,22 @@ services:
     depends_on:
       - prometheus
 
+  logstash:
+    image: docker.elastic.co/logstash/logstash:7.10.0
+    volumes:
+      # - ./logstash.conf:/usr/share/logstash/pipeline/logstash.conf:ro
+      # - ./local_logs:/usr/share/logstash/logs:ro
+
+      - ./logstash:/usr/share/logstash/pipeline
+      - ../conn-json_2024-08-27.log:/local_data/conn-json_2024-08-27.log
+    depends_on:
+      - rabbitmq
+    environment:
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+      - RABBITMQ_USER=admin
+      - RABBITMQ_PASSWORD=admin
+
 volumes:
   grafana-storage:
 

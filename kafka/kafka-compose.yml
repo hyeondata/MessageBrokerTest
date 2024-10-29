@@ -42,6 +42,16 @@ services:
     networks:
       - kafka-monitor-network
 
+  logstash:
+    image: docker.elastic.co/logstash/logstash:7.10.0
+    volumes:
+      - ./logstash:/usr/share/logstash/pipeline
+      - ../conn-json_2024-08-27.log:/local_data/conn-json_2024-08-27.log
+    depends_on:
+      - kafka
+    networks:
+      - kafka-monitor-network
+
   prometheus:
     image: prom/prometheus:latest
     ports:
@@ -79,6 +89,7 @@ services:
       - kafka
     networks:
       - kafka-monitor-network
+    restart: always
 
 volumes:
   grafana-storage:
